@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Last.FM BPM Scrobble Checker</title>
+    <!-- Set encoding -->
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <!-- Add Last.FM client -->
+    <script src="clients/lastfm.api.md5.js"></script>
+    <script src="clients/lastfm.api.js"></script>
+    <script src="clients/lastfm.api.cache.js"></script>
+    <!-- Add Spotify client -->
+    <script src="clients/spotify-web-api.js"></script>
+    <!-- Add Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js" integrity="sha256-ErZ09KkZnzjpqcane4SCyyHsKAXMvID9/xwbl/Aq1pc=" crossorigin="anonymous"></script>
+    <!-- Add jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <!-- Add Luxon -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@2.3.1/build/global/luxon.min.js" integrity="sha256-e2xkOE+oa0Ux7mVa39RFbhewJ4rMMlud92zYs61NHFY=" crossorigin="anonymous"></script>
+    <!-- Add Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Iconify -->
+    <script src="https://code.iconify.design/2/2.2.1/iconify.min.js"></script>
+    <!-- Add Tabulator -->
+    <link href="https://unpkg.com/tabulator-tables@5.1.8/dist/css/tabulator.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.1.8/dist/js/tabulator.min.js"></script>
+</head>
+<body class="bg-gray-800 p-3 min-h-screen text-white">
+<div id="top" class="flex flex-col gap-3">
+    <h1 class="font-bold text-3xl flex flex-row gap-3"><span class="iconify-inline" data-icon="fa-brands:lastfm-square"></span> Last.FM BPM Statistics</h1>
+    <p>A little neat tool that takes your Last.FM scrobbles over a certain period of time and creates a graph using their BPM.</p>
+    <form onsubmit="handleFormClick(); return false;">
+        <div id="form-items" class="flex flex-wrap gap-3">
+        <label for="last_fm_username">Last.FM username:</label>
+        <input type="text" name="username" id="last_fm_username" class="pl-2 pt-1 pb-1 border-1 border-gray-400 rounded text-black" placeholder="coolaalbin" required>
+        <label for="start_time">Start time:</label>
+        <input type="datetime-local" name="start_time" id="start_time" class="pl-2 pt-1 pb-1 border-1 border-gray-400 rounded text-black" required>
+        <label for="end_time">End time:</label>
+             <input type="datetime-local" name="end_time" id="end_time" class="pl-2 pt-1 pb-1 border-1 border-gray-400 rounded text-black" required>
+            <div class="text-sm">
+                <p>...or use a preset:</p>
+                <div class="flex flex-row gap-5 flex-wrap">
+                    <p class="hover:underline hover:cursor-pointer" onclick="setDatePreset('hour')">This hour</p>
+                    <p class="hover:underline hover:cursor-pointer" onclick="setDatePreset('day')">Today</p>
+                    <p class="hover:underline hover:cursor-pointer" onclick="setDatePreset('week')">This week</p>
+                    <p class="hover:underline hover:cursor-pointer" onclick="setDatePreset('last_week')">Last 7 days</p>
+                    <p class="hover:underline hover:cursor-pointer" onclick="setDatePreset('month')">This month</p>
+                </div>
+            </div>
+        <button type="submit" role="button" class="pl-3 pr-3 pb-1 pt-1 font-bold ring-green-100 bg-green-400 rounded-lg">Get data!</button>
+        </div>
+    </form>
+</div>
+<div id="loading" class="p-3 flex flex-col gap-3">
+    <h1 class="font-bold text-3xl"><span class="iconify-inline animate animate-spin" data-icon="gg:spinner-alt"></span> Loading...</h1>
+    <p>The data is loading. Hang tight! This could take a fair bit of time. Here are some statistics on how it is going:</p>
+    <p id="last_fm_pages_loaded">Last.FM pages loaded: N/A</p>
+    <p id="spotify_details_retrieved">Spotify details retrieved: N/A</p>
+    <p id="spotify_pages_loaded">BPM loaded for tracks: None (yet)</p>
+    <h3 class="font-bold text-lg">Help! The counter above stopped/Why on earth is it taking so long?</h3>
+    <p>Stay on it! Seriously, don't blame me... For each track's BPM, your browser has to send a request to Spotify.
+    If you have many scrobbles, Spotify may put a cooldown on your browser. The page is coded to handle these,
+    but it could be a reason why the counter stops.
+    <i>So yes</i>, you might have to stay on this page for several minutes! (a good baseline is that you can roughly count 1 scrobble/second to finish loading)
+    </p>
+</div>
+<div id="chart-wrapper" class="h-1/2">
+<canvas id="chart">
+</canvas>
+</div>
+<div id="tracks-wrapper" hidden>
+<h1 class="font font-bold text-3xl">Track statistics</h1>
+    <div id="data-accuracy-disclaimer" class="bg-yellow-200 border-1 rounded rounded-lg text-yellow-800 p-3 border-yellow-300">
+        <p class="font-bold">A note about BPM data accuracy</p>
+        <p>The BPM data is retrieved from <a href="https://spotify.com">Spotify</a>, and thus I have no control over it.
+        From what I understand, they get the BPM data by analyzing the tracks automatically. If you feel suspicious
+        about the data, see the "BPM accuracy" field in the table below. The closer to 1.0, the closer Spotify is to
+        having detected the actual BPM.</p>
+        <p class="underline hover:underline" onclick="$('#data-accuracy-disclaimer').hide()">(click here to close this window)</p>
+    </div>
+    <p>Once your scrobbles has been loaded, data for them will show up here.</p>
+    <div id="tracks-table"></div>
+</div>
+<div id="footer" class="text-xs mt-5" hidden>
+    <p>Created with <3 by <a href="https://albins.website" class="underline hover:cursor-pointer">albin</a>! BPM & parsed track data from <a href="https://spotify.com" class="underline hover:cursor-pointer" target="_blank">Spotify</a>.
+    Scrobble data from <a href="https://last.fm" class="underline hover:cursor-pointer" target="_blank">Last.FM</a>
+    Built with:
+        <a href="https://github.com/JMPerez/spotify-web-api-js" class="underline hover:cursor-pointer" target="_blank">spotify-web-api-js</a>,
+        <a href="https://github.com/fxb/javascript-last.fm-api" class="underline hover:cursor-pointer" target="_blank">javascript-last.fm-api</a>,
+        <a href="https://jquery.com/" class="underline hover:cursor-pointer" target="_blank">jQuery</a>,
+        <a href="https://www.chartjs.org/" class="underline hover:cursor-pointer" target="_blank">Chart.js</a>,
+        <a href="https://moment.github.io/luxon/#/" class="underline hover:cursor-pointer" target="_blank">Luxon</a>,
+        <a href="https://iconify.design/" class="underline hover:cursor-pointer" target="_blank">Iconify</a>,
+        <a href="http://tabulator.info/" class="underline hover:cursor-pointer" target="_blank">Tabulator</a>,
+    and a lot of love and <a href="https://last.fm/user/coolaalbin" class="underline hover:cursor-pointer" target="_blank">music</a>!
+    </p>
+</div>
+<!-- Load the main webpage script -->
+<script src="main.js" type="text/javascript"></script>
+</body>
+</html>

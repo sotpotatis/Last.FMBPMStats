@@ -1,0 +1,7 @@
+.idea/
+/javascript/supersecrets.js
+clients/lastfm.api.js
+clients/lastfm.api.md5.js
+clients/lastfm.api.cache.js
+clients/spotify-web-api.js
+python/20*

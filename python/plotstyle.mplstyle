@@ -1,0 +1,7 @@
+font.family = ""
+figure.facecolor = "black"
+axes.prop_cycle: cycler(
+color, ["#b867b0"]
+)
+legend.framealpha = 0
+
